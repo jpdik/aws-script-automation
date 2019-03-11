@@ -215,12 +215,12 @@ def include_itens_file(filename):
             }
             }
         }
+
     data_import["components"]["securitySchemes"]["apiAuth"] = {
         "type": "apiKey",
         "name": "x-api-key",
         "in": "header"
     }
-    
 
     with open(filename, 'w') as output:
         output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
@@ -311,7 +311,7 @@ def configure(config_api, filename):
         except Exception:
             remove_api(config_api['id'])
             print("Some error occurred. The API created was removed. Check the messages and try again.")
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, BrokenPipeError):
         remove_api(config_api['id'])
         print("You cancel the operation. The API created was removed.")
 
