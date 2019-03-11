@@ -1,0 +1,293 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "TESTE",
+    "description": "Api de Teste",
+    "version": "0.0.1",
+    "contact": {
+      "name": "Teste",
+      "email": "dev@teste.com.br"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api/v1",
+      "description": "Local"
+    }
+  ],
+  "paths": {
+    "/teste/foo": {
+      "post": {
+        "tags": [
+          "teste"
+        ],
+        "summary": "resumo da rota",
+        "requestBody": {
+          "description": "descricao da rota\n",
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "name"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "token"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "name"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Solicita\u00e7\u00e3o criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Empty"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisi\u00e7\u00e3o inv\u00e1lida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Errors"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Usu\u00e1rio n\u00e3o autorizado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Errors"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicita\u00e7\u00e3o n\u00e3o pode ser processada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Errors"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro interno no servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Errors"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "responses": {
+          "200": {
+            "description": "options generated automatically",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Empty"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teste/foo/result": {
+      "get": {
+        "tags": [
+          "teste"
+        ],
+        "summary": "resumo da rota",
+        "description": "descri\u00e7\u00e3o da rota\n",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "description": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Solicita\u00e7\u00e3o respondida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaTeste"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Solicita\u00e7\u00e3o pendente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Empty"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisi\u00e7\u00e3o inv\u00e1lida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Errors"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Usu\u00e1rio n\u00e3o autorizado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Errors"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicita\u00e7\u00e3o n\u00e3o pode ser processada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Errors"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro interno no servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Errors"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "responses": {
+          "200": {
+            "description": "options generated automatically",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Empty"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Empty": {
+        "type": "object"
+      },
+      "Errors": {
+        "type": "object",
+        "properties": {
+          "msg_errors": {
+            "type": "array",
+            "description": "Lista dos erros ocorridos.",
+            "items": {
+              "$ref": "#/components/schemas/Info"
+            }
+          }
+        }
+      },
+      "Info": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Constante de indica\u00e7\u00e3o."
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensagem descritiva."
+          }
+        }
+      },
+      "SchemaTeste": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "token."
+          },
+          "consists": {
+            "type": "boolean",
+            "description": "Consist\u00eancia."
+          },
+          "msg_infos": {
+            "type": "array",
+            "description": "Lista das informa\u00e7\u00f5es ocorridas.",
+            "items": {
+              "$ref": "#/components/schemas/Info"
+            }
+          },
+          "msg_errors": {
+            "type": "array",
+            "description": "Lista das informa\u00e7\u00f5es ocorridas.",
+            "items": {
+              "$ref": "#/components/schemas/Info"
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "apiAuth": []
+    }
+  ]
+}
