@@ -46,6 +46,7 @@ def load_default_values():
         data['key'] = 'd98ausytcdugisajbdh1231dw12d1'
         data['domain'] = 'http://example.com'
         data['deploy_name'] = 'prod'
+        data['cloudwatch_group'] = 'example'
         with open(os.path.expanduser(CONFIG_PATH)+'data_script', 'w') as f:
             json.dump(data, f, sort_keys=True, indent=4)
 
@@ -175,12 +176,13 @@ def include_itens_file(filename):
 
 # Configure API imported
 def configure(config_api):
+
     if not is_json(config_api):
         return
     endpoints = json.loads(''.join(os.popen('aws apigateway get-resources --rest-api-id {}'.format(config_api['id']))).strip())
 
     # getting domain and key before configure endpoints
-
+    
     key = input_complete('Insert Authorization key', 'key')
     domain = input_complete('Insert Domain', 'domain')
     deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
@@ -215,6 +217,22 @@ def configure(config_api):
         print('Creating Deploy {}...'.format(deploy_name))
 
         ''.join(os.popen('aws apigateway create-deployment --rest-api-id {} --stage-name {}'.format(config_api['id'], deploy_name))).strip()
+
+        # Enable Logs CloudWatch Group
+        print('Enabling Logs CloudWatch Group...')
+        ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/metrics/enabled,value=true'.format(config_api['id'], deploy_name))).strip()
+
+        ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/logging/loglevel,value=INFO'.format(config_api['id'], deploy_name))).strip()
+
+        # Inserting custom logs
+        cloud_groupname = input_complete('Insert CloudWatch Group', 'cloudwatch_group')
+        print('Inserting CloudWatch Group...')
+        
+        ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {} '''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/destinationArn", "value" : "arn:aws:logs:us-east-2:108340439121:log-group:'+cloud_groupname+'" } ]\''))).strip()
+
+        ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {}'''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/format", "value" : "{ \\"api_id\\": \\"$context.apiId\\", \\"api_key_id\\": \\"$context.identity.apiKeyId\\",\\"http_method\\": \\"$context.httpMethod\\", \\"requestId\\": \\"$context.requestId\\", \\"resource_id\\": \\"$context.resourceId\\", \\"resourcePath\\": \\"$context.resourcePath\\", \\"stage\\": \\"$context.stage\\", \\"status\\": \\"$context.status\\"}" } ]\''))).strip()
+
+
         print('\nDeploy {} Executed sucessfully!!!'.format(deploy_name))
     except Exception:
         remove_api(config_api['id'])
