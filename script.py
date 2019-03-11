@@ -21,9 +21,9 @@ import os
 import time
 import re
 import json
-from urllib.parse import urlparse
 from collections.abc import Mapping, Sequence
 from collections import OrderedDict
+import curses
 
 data = {}
 
@@ -47,6 +47,7 @@ def load_default_values():
         data['domain'] = 'http://example.com'
         data['deploy_name'] = 'prod'
         data['cloudwatch_group'] = 'example'
+        data['basePath'] = 'v1'
         with open(os.path.expanduser(CONFIG_PATH)+'data_script', 'w') as f:
             json.dump(data, f, sort_keys=True, indent=4)
 
@@ -70,7 +71,7 @@ check_and_install("awscli")
 import ruamel.yaml
 from ruamel.yaml.error import YAMLError
 
-yaml = ruamel.yaml.YAML()  # this uses the new API
+yaml = ruamel.yaml.YAML()  # this uses the new API]
 
 # Encoding JSON
 class OrderlyJSONEncoder(json.JSONEncoder):
@@ -106,13 +107,57 @@ def yaml_2_json(file):
             return ''
     return os.path.abspath(new_filename)
 
-# Check if the entry is a url
-def is_url(url):
-  try:
-    result = urlparse(url)
-    return all([result.scheme, result.netloc])
-  except Exception:
-    return False
+# Convert yaml to json and return your new file with path 
+def export_json_2_yaml(file):
+    if '.yaml' in os.path.abspath(file):
+        return os.path.abspath(file)
+    try:
+        new_filename = os.path.abspath(file).replace('.json','')+'-export.yaml'
+        data = json.loads(open(os.path.abspath(file)).read())
+        with open(new_filename, 'w', encoding = "utf-8") as output:
+            yaml.dump(data, output)
+    except YAMLError as exc:
+        print(exc)
+        return ''
+    return os.path.abspath(new_filename)
+
+def domain(stdscr):
+    try:
+        domains = json.loads(''.join(os.popen('aws apigateway get-domain-names')))
+
+        domains_names = [domain['domainName'] for domain in domains['items']]
+
+        attributes = {}
+        curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
+        attributes['normal'] = curses.color_pair(1)
+
+        curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)
+        attributes['highlighted'] = curses.color_pair(2)
+
+        c = 0  # last character read
+        option = 0  # current option
+        while c != 10:  # Enter in ascii
+            stdscr.erase()
+            stdscr.addstr("Choose a option to use in custom domain:\n", curses.A_UNDERLINE)
+            for i in range(len(domains_names)):
+                if i == option:
+                    attr = attributes['highlighted']
+                else:
+                    attr = attributes['normal']
+                stdscr.addstr("{0}. ".format(i + 1))
+                stdscr.addstr(domains_names[i] + '\n', attr)
+            c = stdscr.getch()
+            if c == curses.KEY_UP and option > 0:
+                option -= 1
+            elif c == curses.KEY_DOWN and option < len(domains_names) - 1:
+                option += 1
+
+        return domains_names[option]
+    except KeyboardInterrupt:
+        return ''
+
+def select_domain():
+    return curses.wrapper(domain)
 
 # Get result from creation of API import, and show erros and a option to continue if have warnings
 def get_result(result):
@@ -170,73 +215,105 @@ def include_itens_file(filename):
             }
             }
         }
-        
+    data_import["components"]["securitySchemes"]["apiAuth"] = {
+        "type": "apiKey",
+        "name": "x-api-key",
+        "in": "header"
+    }
+    
+
     with open(filename, 'w') as output:
         output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
 
-# Configure API imported
-def configure(config_api):
+# Modify servers option into documentation
+def include_item_servers_file(filename, domain_name, basePath):
+    data_import = json.loads(open(filename).read())
 
-    if not is_json(config_api):
-        return
-    endpoints = json.loads(''.join(os.popen('aws apigateway get-resources --rest-api-id {}'.format(config_api['id']))).strip())
-
-    # getting domain and key before configure endpoints
+    data_import["servers"] = [
+        {
+            "url": "https://{}/{}".format(domain_name, basePath),
+            "description": "API"
+        }
+    ]
     
-    key = input_complete('Insert Authorization key', 'key')
-    domain = input_complete('Insert Domain', 'domain')
-    deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
-    codes = ""
+    with open(filename, 'w') as output:
+        output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
 
+def custom_domain(config_api, deploy_name, filename):
+    domain_name = select_domain()
+    basePath = input_complete('Insert Base Path', 'basePath')
+    json.loads(''.join(os.popen("aws apigateway create-base-path-mapping --domain-name {} --rest-api-id {} --stage {} --base-path {}".format(domain_name, config_api['id'], deploy_name, basePath))).strip())
+    include_item_servers_file(filename, domain_name, basePath)
+
+# Configure API imported
+def configure(config_api, filename):
     try:
-        for item in endpoints['items']:
-            if "resourceMethods" in item:
+        if not is_json(config_api):
+            return
+        endpoints = json.loads(''.join(os.popen('aws apigateway get-resources --rest-api-id {}'.format(config_api['id']))).strip())
 
-                for method in item["resourceMethods"]:
-                    print('\nPath: {}, Method: {}...'.format(item['path'], method))
+        # getting domain and key before configure endpoints
+        
+        key = input_complete('Insert Authorization key', 'key')
+        domain = input_complete('Insert Domain', 'domain')
+        deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
+        codes = ""
 
-                    # configure endpoints
+        try:
+            for item in endpoints['items']:
+                if "resourceMethods" in item:
 
-                    codes = json.loads(''.join(os.popen('aws apigateway update-method --rest-api-id {} --resource-id {} --http-method {} --patch-operations op="replace",path="/apiKeyRequired",value="true"'.format(config_api['id'], item['id'], method))).strip())
+                    for method in item["resourceMethods"]:
+                        print('\nPath: {}, Method: {}...'.format(item['path'], method))
 
-                    print('Configuring endpoins...')
+                        # configure endpoints
 
-                    json.loads(''.join(os.popen('aws apigateway put-integration --rest-api-id {0} --resource-id {1} --http-method {2} --type HTTP_PROXY --integration-http-method {2} --uri \'{3}{4}\' --request-parameters "{5}"'.format(config_api['id'], item['id'], method, domain, item['path'], '''{ \\"integration.request.header.Authorization\\": \\"\''''+key+'''\'\\" }'''))).strip())
-                    
-                    # Enabling CORS for methods
+                        codes = json.loads(''.join(os.popen('aws apigateway update-method --rest-api-id {} --resource-id {} --http-method {} --patch-operations op="replace",path="/apiKeyRequired",value="true"'.format(config_api['id'], item['id'], method))).strip())
 
-                    print('Enabling CORS...')
+                        print('Configuring endpoins...')
 
-                    for responseCode in codes["methodResponses"]:
-                        json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Origin",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
-                        json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Headers",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
-                        json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Methods",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
+                        json.loads(''.join(os.popen('aws apigateway put-integration --rest-api-id {0} --resource-id {1} --http-method {2} --type HTTP_PROXY --integration-http-method {2} --uri \'{3}{4}\' --request-parameters "{5}"'.format(config_api['id'], item['id'], method, domain, item['path'], '''{ \\"integration.request.header.Authorization\\": \\"\''''+key+'''\'\\" }'''))).strip())
+                        
+                        # Enabling CORS for methods
+
+                        print('Enabling CORS...')
+
+                        for responseCode in codes["methodResponses"]:
+                            json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Origin",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
+                            json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Headers",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
+                            json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Methods",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
+                
+                        print('\nPath: {}, Method: {}... Configured sucessfully!!!'.format(item['path'], method))
             
-                    print('\nPath: {}, Method: {}... Configured sucessfully!!!'.format(item['path'], method))
-        
-        print('Creating Deploy {}...'.format(deploy_name))
+            print('Creating Deploy {}...'.format(deploy_name))
 
-        ''.join(os.popen('aws apigateway create-deployment --rest-api-id {} --stage-name {}'.format(config_api['id'], deploy_name))).strip()
+            ''.join(os.popen('aws apigateway create-deployment --rest-api-id {} --stage-name {}'.format(config_api['id'], deploy_name))).strip()
 
-        # Enable Logs CloudWatch Group
-        print('Enabling Logs CloudWatch Group...')
-        ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/metrics/enabled,value=true'.format(config_api['id'], deploy_name))).strip()
+            # Enable Logs CloudWatch Group
+            print('Enabling Logs CloudWatch Group...')
+            ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/metrics/enabled,value=true'.format(config_api['id'], deploy_name))).strip()
 
-        ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/logging/loglevel,value=INFO'.format(config_api['id'], deploy_name))).strip()
+            ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/logging/loglevel,value=INFO'.format(config_api['id'], deploy_name))).strip()
 
-        # Inserting custom logs
-        cloud_groupname = input_complete('Insert CloudWatch Group', 'cloudwatch_group')
-        print('Inserting CloudWatch Group...')
-        
-        ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {} '''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/destinationArn", "value" : "arn:aws:logs:us-east-2:108340439121:log-group:'+cloud_groupname+'" } ]\''))).strip()
+            # Inserting custom logs
+            cloud_groupname = input_complete('Insert CloudWatch Group', 'cloudwatch_group')
+            print('Inserting CloudWatch Group...')
+            
+            ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {} '''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/destinationArn", "value" : "arn:aws:logs:us-east-2:108340439121:log-group:'+cloud_groupname+'" } ]\''))).strip()
 
-        ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {}'''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/format", "value" : "{ \\"api_id\\": \\"$context.apiId\\", \\"api_key_id\\": \\"$context.identity.apiKeyId\\",\\"http_method\\": \\"$context.httpMethod\\", \\"requestId\\": \\"$context.requestId\\", \\"resource_id\\": \\"$context.resourceId\\", \\"resourcePath\\": \\"$context.resourcePath\\", \\"stage\\": \\"$context.stage\\", \\"status\\": \\"$context.status\\"}" } ]\''))).strip()
+            ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {}'''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/format", "value" : "{ \\"api_id\\": \\"$context.apiId\\", \\"api_key_id\\": \\"$context.identity.apiKeyId\\",\\"http_method\\": \\"$context.httpMethod\\", \\"requestId\\": \\"$context.requestId\\", \\"resource_id\\": \\"$context.resourceId\\", \\"resourcePath\\": \\"$context.resourcePath\\", \\"stage\\": \\"$context.stage\\", \\"status\\": \\"$context.status\\"}" } ]\''))).strip()
 
+            print('Configuring custom domain...')
+            custom_domain(config_api, deploy_name, filename)
+            export_json_2_yaml(filename)
 
-        print('\nDeploy {} Executed sucessfully!!!'.format(deploy_name))
-    except Exception:
+            print('\nDeploy {} Executed sucessfully!!!'.format(deploy_name))
+        except Exception:
+            remove_api(config_api['id'])
+            print("Some error occurred. The API created was removed. Check the messages and try again.")
+    except KeyboardInterrupt:
         remove_api(config_api['id'])
-        print("Some error occurred. The API created was removed. Check the messages and try again.")
+        print("You cancel the operation. The API created was removed.")
 
 # Remove api if some error happened
 def remove_api(api_id):
@@ -267,7 +344,7 @@ def init():
 
     if len(sys.argv) <= 1:
         print("Tip: to set region use `aws configure set default.region [region]`")
-        print("Use: {} [File .yaml or .json or a URL]".format(sys.argv[0]))
+        print("Use: {} [File .yaml or .json]".format(sys.argv[0]))
     elif len(sys.argv) == 3 and sys.argv[2] == '--config' or len(sys.argv) == 2 and sys.argv[1] == '--config':
         configure_aws()
     else:
@@ -276,15 +353,9 @@ def init():
             include_itens_file(filename)
             while get_result(os.popen("aws apigateway import-rest-api --parameters {} --body 'file://{}' {}".format(PARAMS, filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
                 continue
-            configure(config_api)
-        elif is_url(sys.argv[1]): # check if is a url
-            filename = yaml_2_json(sys.argv[1])
-            include_itens_file(filename)
-            while get_result(os.popen("aws apigateway import-rest-api --parameters {} --body '{}' {}".format(PARAMS, filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
-                continue
-            configure(config_api)
+            configure(config_api, filename)
         else:
-            print("Invalid file or URL.")
+            print("Invalid file.")
 
 
 load_default_values()
