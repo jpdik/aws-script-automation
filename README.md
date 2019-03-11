@@ -13,11 +13,11 @@ or execute with python:
 
 `python3 script.sh`
 
-## Loading files to deploy
+## Loading documentation files to deploy
 
 Just pass the file path in the argument:
 
-`./script.py [fielpath .json or .yaml]`
+`./script.py [filepath .json or .yaml]`
 
 Examples:
 
