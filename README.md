@@ -31,7 +31,7 @@ or
 
 At the first time you need from AWS API key from <a href='https://console.aws.amazon.com/iam/home'>IAM User</a>.
 
-and insert de values into the next steps:
+Insert de values into the next steps:
 
 `AWS Access Key ID:<YOU_AWS_ID>`
 
@@ -44,7 +44,8 @@ and insert de values into the next steps:
 1. Insert the Authorization key and domain from endpoints:
 
     `Insert Authorization key [d98ausytcdugisajbdh1231dw12d1]: <AUTHORIZATION_KEY>`
-`Insert Domain [http://example.com]: <DOMAIN_WITH_HTTP(S)>`
+    
+    `Insert Domain [http://example.com]: <DOMAIN_WITH_HTTP(S)>`
 
 2. After insert the name from deploy:
 
