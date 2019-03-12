@@ -38,8 +38,6 @@ def load_default_values():
     if os.path.exists(os.path.expanduser(CONFIG_PATH)+'data_script'):
         data = json.load(open(os.path.expanduser(CONFIG_PATH)+'data_script', 'r'))
     else:
-        data['key'] = 'd98ausytcdugisajbdh1231dw12d1'
-        data['domain'] = 'https://example.com'
         data['deploy_name'] = 'prod'
         data['cloudwatch_group'] = 'example'
         data['basePath'] = 'v1'
@@ -87,7 +85,7 @@ def export_json_2_yaml(file):
     if '.yaml' in os.path.abspath(file):
         return os.path.abspath(file)
     try:
-        new_filename = os.path.abspath(file).replace('.json','')+'-export.yaml'
+        new_filename = os.path.abspath(file).replace('.json','')+'.prod.yaml'
         data = json.loads(open(os.path.abspath(file)).read())
         with open(new_filename, 'w', encoding = "utf-8") as output:
             yaml.dump(data, output)
@@ -179,6 +177,13 @@ def input_complete(message, field):
     store_value(field, value)
     return value
 
+# Function to wait input value:
+def input_wait(message):
+    while True:
+        val = input(message)
+        if val != "":
+            return val
+
 # Include the OPTIONS to all path's if not exists
 def include_itens_file(filename):
     data_import = json.loads(open(filename).read())
@@ -235,10 +240,12 @@ def configure(config_api, filename):
 
         # getting domain and key before configure endpoints
         
-        key = input_complete('Insert Authorization key', 'key')
-        domain = input_complete('Insert Domain', 'domain')
+        key = input_wait('Insert Authorization key (example: asd09aus81923aas112):')
+        domain = input_wait('Insert Domain (example: https://example.com):')
         deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
         codes = ""
+
+        print(key, domain)
 
         try:
             for item in endpoints['items']:
@@ -249,7 +256,7 @@ def configure(config_api, filename):
     
                         # configure endpoints
 
-                        codes = json.loads(''.join(os.popen('aws apigateway update-method --rest-api-id {} --resource-id {} --http-method {} --patch-operations op="replace",path="/apiKeyRequired",value="true"'.format(config_api['id'], item['id'], method))).strip())
+                        codes = json.loads(''.join(os.popen('aws apigateway update-method --rest-api-id {} --resource-id {} --http-method {} --patch-operations op="replace",path="/apiKeyRequired",value="{}"'.format(config_api['id'], item['id'], method, 'false' if method == 'OPTIONS' else 'true'))).strip())
 
                         print('Configuring endpoins...')
 
@@ -297,11 +304,15 @@ def configure(config_api, filename):
             remove_json(filename)
 
             print('\nDeploy {} Executed sucessfully!!!'.format(deploy_name))
-        except Exception:
+        except Exception as e:
+            print(e, ". Some field was not filled correctly.")
+
             remove_api(config_api['id'])
+            remove_json(filename)
             print("Some error occurred. The API created was removed. Check the messages and try again.")
     except (KeyboardInterrupt, BrokenPipeError):
         remove_api(config_api['id'])
+        remove_json(filename)
         print("You cancel the operation. The API created was removed.")
 
 # Remove api if some error happened
