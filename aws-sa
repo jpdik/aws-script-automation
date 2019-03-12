@@ -297,8 +297,6 @@ def configure(config_api, filename):
 
             # Enable Logs CloudWatch Group
             print('Enabling Logs CloudWatch Group...')
-            ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/metrics/enabled,value=true'.format(config_api['id'], deploy_name))).strip()
-
             ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/logging/loglevel,value=INFO'.format(config_api['id'], deploy_name))).strip()
 
             # Inserting custom logs

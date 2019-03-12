@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 setuptools.setup(
     name='aws-sa',  
-    version='1.2.0',
+    version='1.2.1',
     scripts=['aws-sa'] ,
     author="João Paulo de Melo",
     author_email="jpmdik@gmail.com",
