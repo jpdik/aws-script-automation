@@ -39,7 +39,7 @@ def load_default_values():
         data = json.load(open(os.path.expanduser(CONFIG_PATH)+'data_script', 'r'))
     else:
         data['key'] = 'd98ausytcdugisajbdh1231dw12d1'
-        data['domain'] = 'http://example.com'
+        data['domain'] = 'https://example.com'
         data['deploy_name'] = 'prod'
         data['cloudwatch_group'] = 'example'
         data['basePath'] = 'v1'
@@ -246,15 +246,18 @@ def configure(config_api, filename):
 
                     for method in item["resourceMethods"]:
                         print('\nPath: {}, Method: {}...'.format(item['path'], method))
-
+    
                         # configure endpoints
 
                         codes = json.loads(''.join(os.popen('aws apigateway update-method --rest-api-id {} --resource-id {} --http-method {} --patch-operations op="replace",path="/apiKeyRequired",value="true"'.format(config_api['id'], item['id'], method))).strip())
 
                         print('Configuring endpoins...')
 
-                        json.loads(''.join(os.popen('aws apigateway put-integration --rest-api-id {0} --resource-id {1} --http-method {2} --type HTTP_PROXY --integration-http-method {2} --uri \'{3}{4}\' --request-parameters "{5}"'.format(config_api['id'], item['id'], method, domain, item['path'], '''{ \\"integration.request.header.Authorization\\": \\"\''''+key+'''\'\\" }'''))).strip())
-                        
+                        if method == "OPTIONS":
+                            json.loads(''.join(os.popen('aws apigateway put-integration --rest-api-id {0} --resource-id {1} --http-method {2} --type MOCK --integration-http-method {2} --uri \'{3}{4}\' --request-parameters "{5}"'.format(config_api['id'], item['id'], method, domain, item['path'], '''{ \\"integration.request.header.Authorization\\": \\"\''''+key+'''\'\\" }'''))).strip())
+                        else:
+                            json.loads(''.join(os.popen('aws apigateway put-integration --rest-api-id {0} --resource-id {1} --http-method {2} --type HTTP_PROXY --integration-http-method {2} --uri \'{3}{4}\' --request-parameters "{5}" '.format(config_api['id'], item['id'], method, domain, item['path'], '''{ \\"integration.request.header.Authorization\\": \\"\''''+key+'''\'\\" }'''))).strip())
+                            json.loads(''.join(os.popen('aws apigateway put-integration-response --rest-api-id {} --resource-id {} --http-method {} --status-code 200 --selection-pattern "" --response-templates "{}"'.format(config_api['id'], item['id'], method, '''{ \\"application/json\\": \\"\\" }'''))).strip())
                         # Enabling CORS for methods
 
                         print('Enabling CORS...')
@@ -263,7 +266,11 @@ def configure(config_api, filename):
                             json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Origin",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
                             json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Headers",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
                             json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Methods",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
-                
+
+                        if method == "OPTIONS":
+                            json.loads(''.join(os.popen('aws apigateway put-integration-response --rest-api-id {} --resource-id {} --http-method {} --status-code 200 --selection-pattern "-" --response-parameters "{}" --response-templates "{}"'.format(config_api['id'], item['id'], method,
+                             ''' {\\"method.response.header.Access-Control-Allow-Headers\\": \\"\'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token\'\\", \\"method.response.header.Access-Control-Allow-Methods\\": \\"\''''+','.join([x for x in item["resourceMethods"]])+'''\'\\", \\"method.response.header.Access-Control-Allow-Origin\\": \\"\'*\'\\"} ''', '''{\\"application/json\\": \\"\'\'\\"} '''))).strip())
+
                         print('\nPath: {}, Method: {}... Configured sucessfully!!!'.format(item['path'], method))
             
             print('Creating Deploy {}...'.format(deploy_name))
