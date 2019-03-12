@@ -269,7 +269,7 @@ def configure(config_api, filename):
 
                         if method == "OPTIONS":
                             json.loads(''.join(os.popen('aws apigateway put-integration-response --rest-api-id {} --resource-id {} --http-method {} --status-code 200 --selection-pattern "-" --response-parameters "{}" --response-templates "{}"'.format(config_api['id'], item['id'], method,
-                             ''' {\\"method.response.header.Access-Control-Allow-Headers\\": \\"\'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token\'\\", \\"method.response.header.Access-Control-Allow-Methods\\": \\"\''''+','.join([x for x in item["resourceMethods"]])+'''\'\\", \\"method.response.header.Access-Control-Allow-Origin\\": \\"\'*\'\\"} ''', '''{\\"application/json\\": \\"\'\'\\"} '''))).strip())
+                             ''' {\\"method.response.header.Access-Control-Allow-Headers\\": \\"\'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token\'\\", \\"method.response.header.Access-Control-Allow-Methods\\": \\"\''''+','.join([x for x in item["resourceMethods"]])+'''\'\\", \\"method.response.header.Access-Control-Allow-Origin\\": \\"\'*\'\\"} ''', '''{\\"application/json\\": \\"\\"} '''))).strip())
 
                         print('\nPath: {}, Method: {}... Configured sucessfully!!!'.format(item['path'], method))
             
