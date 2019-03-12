@@ -188,7 +188,7 @@ def input_wait(message):
 def include_itens_file(filename):
     data_import = json.loads(open(filename).read())
     for path in data_import["paths"]:
-        if not "options" in path:
+        if not "options" in data_import["paths"][path]:
             data_import["paths"][path]["options"] = { "responses": { "200": {
                 "description": "options generated automatically",
                 "content": {
@@ -201,6 +201,18 @@ def include_itens_file(filename):
             }
             }
         }
+        if "post" in data_import["paths"][path]:
+            if not "200" in data_import["paths"][path]["post"]["responses"]:
+                data_import["paths"][path]["post"]["responses"]["200"] = {
+                    "description": "post generated automatically",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                            "$ref": "#/components/schemas/Empty"
+                            }
+                        }
+                    }
+                }
 
     data_import["components"]["securitySchemes"]["apiAuth"] = {
         "type": "apiKey",
