@@ -41,6 +41,7 @@ def load_default_values():
         data['deploy_name'] = 'prod'
         data['cloudwatch_group'] = 'example'
         data['basePath'] = 'v1'
+        data['arn_group'] = 'arn:aws:logs:sa-east-1:262209455936:log-group:'
         with open(os.path.expanduser(CONFIG_PATH)+'data_script', 'w') as f:
             json.dump(data, f, sort_keys=True, indent=4)
 
@@ -301,10 +302,11 @@ def configure(config_api, filename):
             ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/logging/loglevel,value=INFO'.format(config_api['id'], deploy_name))).strip()
 
             # Inserting custom logs
-            cloud_groupname = input_complete('Insert CloudWatch Group', 'cloudwatch_group')
+            arn_group = input_complete('Insert Arn Log Group', 'arn_group')
+            cloud_groupname = input_wait('Insert CloudWatch Group (example: LawSuit):')
             print('Inserting CloudWatch Group...')
             
-            ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {} '''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/destinationArn", "value" : "arn:aws:logs:sa-east-1:262209455936:log-group:'+cloud_groupname+'" } ]\''))).strip()
+            ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {} '''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/destinationArn", "value" : "'+arn_group+cloud_groupname+'" } ]\''))).strip()
 
             ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {}'''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/format", "value" : "{ \\"api_id\\": \\"$context.apiId\\", \\"api_key_id\\": \\"$context.identity.apiKeyId\\",\\"http_method\\": \\"$context.httpMethod\\", \\"requestId\\": \\"$context.requestId\\", \\"resource_id\\": \\"$context.resourceId\\", \\"resourcePath\\": \\"$context.resourcePath\\", \\"stage\\": \\"$context.stage\\", \\"status\\": \\"$context.status\\"}" } ]\''))).strip()
 
