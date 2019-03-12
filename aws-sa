@@ -96,6 +96,12 @@ def export_json_2_yaml(file):
         return ''
     return os.path.abspath(new_filename)
 
+# Remove json used to create yaml 
+def remove_json(file):
+    if '.json' in os.path.abspath(file):
+        os.remove(os.path.abspath(file))
+        return os.path.abspath(file)
+
 def domain(stdscr):
     try:
         domains = json.loads(''.join(os.popen('aws apigateway get-domain-names')))
@@ -281,6 +287,7 @@ def configure(config_api, filename):
             print('Configuring custom domain...')
             custom_domain(config_api, deploy_name, filename)
             export_json_2_yaml(filename)
+            remove_json(filename)
 
             print('\nDeploy {} Executed sucessfully!!!'.format(deploy_name))
         except Exception:
@@ -311,7 +318,7 @@ def configure_aws():
 
 # Starts the script
 def init():
-    global PARAMS
+    global config_api, PARAMS
 
     # Create config API file and file credentials if not exists
     if not os.path.isfile(os.path.expanduser(CONFIG_PATH)+'credentials'):
