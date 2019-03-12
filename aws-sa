@@ -257,8 +257,6 @@ def configure(config_api, filename):
         deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
         codes = ""
 
-        print(key, domain)
-
         try:
             for item in endpoints['items']:
                 if "resourceMethods" in item:
