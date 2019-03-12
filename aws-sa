@@ -7,14 +7,9 @@ if sys.version_info[0] < 3:
     print("Must be using Python 3")
     sys.exit(1)
 
-try:
-    import pip
-except ImportError:
-    print("You need to install pip to use this script")
-    print("Tips on line command:")
-    print("(Linux) sudo apt install python3-pip")
-    print("(Windows or MAC-OS) download get-pip.py and execute: python3 get-pip.py")
-    sys.exit(1)
+import awscli
+import ruamel.yaml
+from ruamel.yaml.error import YAMLError
 
 import importlib
 import os
@@ -50,26 +45,6 @@ def load_default_values():
         data['basePath'] = 'v1'
         with open(os.path.expanduser(CONFIG_PATH)+'data_script', 'w') as f:
             json.dump(data, f, sort_keys=True, indent=4)
-
-# Check if dependencies are installed, if not, install then
-def check_and_install(package):
-    try:
-        if "." in package:
-            importlib.util.find_spec(package)
-        if importlib.find_loader(package) is None:
-            raise ModuleNotFoundError
-    except ModuleNotFoundError:
-        print("The module {} was not found, gonna be installed now.".format(package))
-        time.sleep(3)
-        pip.main(['install', package])
-        print("\n" * os.get_terminal_size().lines)
-        print("The module {}, was installed sucessfully!".format(package)) 
-
-check_and_install("ruamel.yaml")
-check_and_install("awscli")
-
-import ruamel.yaml
-from ruamel.yaml.error import YAMLError
 
 yaml = ruamel.yaml.YAML()  # this uses the new API]
 
@@ -344,7 +319,7 @@ def init():
 
     if len(sys.argv) <= 1:
         print("Tip: to set region use `aws configure set default.region [region]`")
-        print("Use: {} [File .yaml or .json]".format(sys.argv[0]))
+        print("Use: {} [File .yaml or .json]".format(os.path.basename(sys.argv[0])))
     elif len(sys.argv) == 3 and sys.argv[2] == '--config' or len(sys.argv) == 2 and sys.argv[1] == '--config':
         configure_aws()
     else:

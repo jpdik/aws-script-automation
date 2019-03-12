@@ -1,31 +1,25 @@
 # aws-script-automation
 Scripting for AWS API configurations automation
 
-## How to use
+## Instalation
 
-Put script into execution mode:
+Use pip to make instalation:
 
-`chmod u+x script.sh`
-
-and execute with `./script.sh`
-
-or execute with python:
-
-`python3 script.sh`
+`pip install --user aws-sa`
 
 ## Loading documentation files to deploy
 
 Just pass the file path in the argument:
 
-`./script.py [filepath .json or .yaml]`
+`aws-sa [filepath .json or .yaml]`
 
 Examples:
 
-`./script.py file.yaml`
+`aws-sa file.yaml`
 
 or
 
-`./script.py /home/user/Documents/file.json`
+`aws-sa /home/user/Documents/file.json`
 
 ## Configuration
 
