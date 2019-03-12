@@ -63,7 +63,7 @@ The values ​​are stored if you want to use them later (bracketed value). If 
 
 ## Output
 
-A documentation file with the same name as the imported file will be generated with the ending **-export.yaml**.
+A documentation file with the same name as the imported file will be generated with the ending **.prod.yaml**.
 
 ## Change Region
 
