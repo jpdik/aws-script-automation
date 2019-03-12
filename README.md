@@ -1,4 +1,4 @@
-# aws-script-automation [![nvm version](https://img.shields.io/badge/version-v1.1.7-blue.svg)](https://pypi.org/manage/project/aws-sa/releases/) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/aws-sa.svg?color=orange)
+# aws-script-automation [![nvm version](https://img.shields.io/badge/version-v1.1.8-blue.svg)](https://pypi.org/manage/project/aws-sa/releases/) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/aws-sa.svg?color=orange)
 Scripting for AWS API configurations automation
 
 ## Instalation
@@ -37,9 +37,9 @@ Insert de values into the next steps:
 
 1. Insert the Authorization key and domain from endpoints:
 
-    `Insert Authorization key [d98ausytcdugisajbdh1231dw12d1]: <AUTHORIZATION_KEY>`
+    `Insert Authorization key (example: asd09aus81923aas112): <AUTHORIZATION_KEY>`
     
-    `Insert Domain [http://example.com]: <DOMAIN_WITH_HTTP(S)>`
+    `Insert Domain (example: https://example.com): <DOMAIN_WITH_HTTP(S)>`
 
 2. After insert the name from deploy:
 
