@@ -16,6 +16,7 @@ import os
 import time
 import re
 import json
+from urllib.parse import urlparse
 from collections.abc import Mapping, Sequence
 from collections import OrderedDict
 import curses
@@ -24,6 +25,28 @@ data = {}
 
 CONFIG_PATH = '~/.aws/'
 PARAMS = 'endpointConfigurationTypes=REGIONAL'
+
+RESPONSE_TYPES = [
+'DEFAULT_4XX',
+'DEFAULT_5XX',
+'RESOURCE_NOT_FOUND',
+'UNAUTHORIZED',
+'INVALID_API_KEY',
+'ACCESS_DENIED',
+'AUTHORIZER_FAILURE',
+'AUTHORIZER_CONFIGURATION_ERROR',
+'INVALID_SIGNATURE',
+'EXPIRED_TOKEN',
+'MISSING_AUTHENTICATION_TOKEN',
+'INTEGRATION_FAILURE',
+'INTEGRATION_TIMEOUT',
+'API_CONFIGURATION_ERROR',
+'UNSUPPORTED_MEDIA_TYPE',
+'BAD_REQUEST_PARAMETERS',
+'BAD_REQUEST_BODY',
+'REQUEST_TOO_LARGE',
+'THROTTLED',
+'QUOTA_EXCEEDED',]
 
 config_api = ""
 fail = False
@@ -39,7 +62,6 @@ def load_default_values():
         data = json.load(open(os.path.expanduser(CONFIG_PATH)+'data_script', 'r'))
     else:
         data['deploy_name'] = 'prod'
-        data['cloudwatch_group'] = 'example'
         data['basePath'] = 'v1'
         data['arn_group'] = 'arn:aws:logs:sa-east-1:262209455936:log-group:'
         with open(os.path.expanduser(CONFIG_PATH)+'data_script', 'w') as f:
@@ -239,23 +261,65 @@ def include_item_servers_file(filename, domain_name, basePath):
         output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
 
 def custom_domain(config_api, deploy_name, filename):
+    print('Configuring custom domain...')
     domain_name = select_domain()
     basePath = input_complete('Insert Base Path', 'basePath')
     json.loads(''.join(os.popen("aws apigateway create-base-path-mapping --domain-name {} --rest-api-id {} --stage {} --base-path {}".format(domain_name, config_api['id'], deploy_name, basePath))).strip())
     include_item_servers_file(filename, domain_name, basePath)
 
+def gateway_responses(config_api):
+    print('Configuring gateway responses...')
+
+    for response in RESPONSE_TYPES:
+        ''.join(os.popen('aws apigateway put-gateway-response --rest-api-id {} --response-type {} --response-parameters "{}" --response-templates "{}"'.format(config_api['id'], response, 
+        ''' {\\"gatewayresponse.header.Access-Control-Allow-Headers\\": \\"\'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token\'\\", \\"gatewayresponse.header.Access-Control-Allow-Methods\\": \\"\''''+'GET, POST, PUT, DELETE, OPTIONS'+'''\'\\", \\"gatewayresponse.header.Access-Control-Allow-Origin\\": \\"\'*\'\\"} ''', '''{\\"application/json\\": \\"{ errors: [{ status: 'GATEWAY_ERROR', msg: 'erro no gateway' }] }\\"} '''))).strip()
+
+def get_base_url(url):
+    parsed_uri = urlparse(url)
+    return '{uri.scheme}://{uri.netloc}'.format(uri=parsed_uri)
+    
+
+# get old config JSON from old endpoints
+def get_old_config(config_api, old_endpoints):
+    for item in old_endpoints['items']:
+        if "resourceMethods" in item:
+            for method in item["resourceMethods"]:
+                if method != "OPTIONS":
+                    return json.loads(''.join(os.popen('aws apigateway get-integration --rest-api-id {} --resource-id {} --http-method {}'.format(config_api['id'], item['id'], method))).strip())
+    return {}
+
+# Remove malformed endpoins in case of failure
+def remove_malformed_paths(endpoints):
+    for item in endpoints['items']:
+        ''.join(os.popen('aws apigateway delete-resource --rest-api-id {} --resource-id {}'.format(config_api['id'], item['id']))).strip()
+
 # Configure API imported
-def configure(config_api, filename):
+def configure(config_api, filename, merge=False, old_endpoints={}):
+    endpoints = ''
     try:
         if not is_json(config_api):
             return
         endpoints = json.loads(''.join(os.popen('aws apigateway get-resources --rest-api-id {}'.format(config_api['id']))).strip())
 
         # getting domain and key before configure endpoints
-        
-        key = input_wait('Insert Authorization key (example: asd09aus81923aas112):')
-        domain = input_wait('Insert Domain (example: https://example.com):')
-        deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
+
+        key = ''
+        domain = ''
+        deploy_name = ''
+
+        if not merge:
+            key = input_wait('Insert Authorization key (example: asd09aus81923aas112):')
+            domain = input_wait('Insert Domain (example: https://example.com):')
+            deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
+        else:
+            for item in old_endpoints['items']:
+                endpoints['items'].remove(item)
+
+            data_api = get_old_config(config_api, old_endpoints)
+
+            key = data_api['requestParameters']['integration.request.header.Authorization'].replace("\'", "")
+            domain = get_base_url(data_api['uri'])
+
         codes = ""
 
         try:
@@ -291,40 +355,59 @@ def configure(config_api, filename):
 
                         print('\nPath: {}, Method: {}... Configured sucessfully!!!'.format(item['path'], method))
             
-            print('Creating Deploy {}...'.format(deploy_name))
+            if not old_endpoints:
+                gateway_responses(config_api)
 
-            ''.join(os.popen('aws apigateway create-deployment --rest-api-id {} --stage-name {}'.format(config_api['id'], deploy_name))).strip()
+                print('Creating Deploy {}...'.format(deploy_name))
 
-            # Enable Logs CloudWatch Group
-            print('Enabling Logs CloudWatch Group...')
-            ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/logging/loglevel,value=INFO'.format(config_api['id'], deploy_name))).strip()
+                ''.join(os.popen('aws apigateway create-deployment --rest-api-id {} --stage-name {}'.format(config_api['id'], deploy_name))).strip()
 
-            # Inserting custom logs
-            arn_group = input_complete('Insert Arn Log Group', 'arn_group')
-            cloud_groupname = input_wait('Insert CloudWatch Group (example: LawSuit):')
-            print('Inserting CloudWatch Group...')
-            
-            ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {} '''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/destinationArn", "value" : "'+arn_group+cloud_groupname+'" } ]\''))).strip()
+                # Enable Logs CloudWatch Group
+                print('Enabling Logs CloudWatch Group...')
+                ''.join(os.popen('aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations op=replace,path=/*/*/logging/loglevel,value=INFO'.format(config_api['id'], deploy_name))).strip()
 
-            ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {}'''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/format", "value" : "{ \\"api_id\\": \\"$context.apiId\\", \\"api_key_id\\": \\"$context.identity.apiKeyId\\",\\"http_method\\": \\"$context.httpMethod\\", \\"requestId\\": \\"$context.requestId\\", \\"resource_id\\": \\"$context.resourceId\\", \\"resourcePath\\": \\"$context.resourcePath\\", \\"stage\\": \\"$context.stage\\", \\"status\\": \\"$context.status\\"}" } ]\''))).strip()
+                # Inserting custom logs
+                arn_group = input_complete('Insert Arn Log Group', 'arn_group')
+                cloud_groupname = input_wait('Insert CloudWatch Group (example: LawSuit):')
+                print('Inserting CloudWatch Group...')
+                
+                ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {} '''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/destinationArn", "value" : "'+arn_group+cloud_groupname+'" } ]\''))).strip()
 
-            print('Configuring custom domain...')
-            custom_domain(config_api, deploy_name, filename)
-            export_json_2_yaml(filename)
-            remove_json(filename)
+                ''.join(os.popen('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {}'''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/format", "value" : "{ \\"api_id\\": \\"$context.apiId\\", \\"api_key_id\\": \\"$context.identity.apiKeyId\\",\\"http_method\\": \\"$context.httpMethod\\", \\"requestId\\": \\"$context.requestId\\", \\"resource_id\\": \\"$context.resourceId\\", \\"resourcePath\\": \\"$context.resourcePath\\", \\"stage\\": \\"$context.stage\\", \\"status\\": \\"$context.status\\"}" } ]\''))).strip()
 
-            print('\nDeploy {} Executed sucessfully!!!'.format(deploy_name))
+                custom_domain(config_api, deploy_name, filename)
+
+                export_json_2_yaml(filename)
+                remove_json(filename)
+
+                print('\nDeploy {} Executed sucessfully!!!'.format(deploy_name))
+            else:
+                print('\nUpdate from {} Executed sucessfully!!!'.format(config_api['id']))
         except Exception as e:
             print(e, ". Some field was not filled correctly.")
 
-            remove_api(config_api['id'])
+            if not old_endpoints:
+                remove_api(config_api['id'])
+                print("Some error occurred. The API created was removed. Check the messages and try again.")
+            else:
+                if merge:
+                    remove_malformed_paths(endpoints)
+                    print("Some error occurred. New malformed endpoints were automatically removed.")
+                else:
+                    print("Some error occurred. You need to fix the problem and recovery the API.")
             remove_json(filename)
-            print("Some error occurred. The API created was removed. Check the messages and try again.")
     except (KeyboardInterrupt, BrokenPipeError):
-        remove_api(config_api['id'])
+        if not old_endpoints:
+            remove_api(config_api['id'])
+            print("You cancel the operation. The API created was removed.")
+        else:
+            if merge:
+                remove_malformed_paths(endpoints)
+                print("You cancel the operation. New malformed endpoints were automatically removed.")
+            else:
+                print("Some error occurred. You need to fix the problem and recovery the API.")
         remove_json(filename)
-        print("You cancel the operation. The API created was removed.")
-
+        
 # Remove api if some error happened
 def remove_api(api_id):
     print(''.join(os.popen('aws apigateway delete-rest-api --rest-api-id {}'.format(api_id))).strip())
@@ -344,6 +427,14 @@ def configure_aws():
         f.write("[default]\n")
         f.write("region = "+input("Default region name:")+"\n")
 
+# check mode update
+def check_mode(mode):
+    if mode == '--overwrite':
+        return 'overwrite'
+    elif mode == '--merge':
+        return 'merge'
+    return 'select_mode_update_valid'
+
 # Starts the script
 def init():
     global config_api, PARAMS
@@ -354,9 +445,33 @@ def init():
 
     if len(sys.argv) <= 1:
         print("Tip: to set region use `aws configure set default.region [region]`")
-        print("Use: {} [File .yaml or .json]".format(os.path.basename(sys.argv[0])))
-    elif len(sys.argv) == 3 and sys.argv[2] == '--config' or len(sys.argv) == 2 and sys.argv[1] == '--config':
+        print("Use: {} [File .yaml or .json] [--id] [api-id] [--overwrite|--merge]".format(os.path.basename(sys.argv[0])))
+    elif len(sys.argv) >= 3 and sys.argv[2] == '--config' or len(sys.argv) >= 2 and sys.argv[1] == '--config':
         configure_aws()
+    elif len(sys.argv) >= 3 and sys.argv[2] == '--id': # merge or overrite
+        if len(sys.argv) >= 5:
+            if sys.argv[4] == '--overwrite' or sys.argv[4] == '--merge':
+                if os.path.exists(sys.argv[1]): # check file exists
+                    filename = yaml_2_json(sys.argv[1])
+                    include_itens_file(filename)
+
+                    old_endpoints = json.loads(''.join(os.popen('aws apigateway get-resources --rest-api-id {}'.format(sys.argv[3]))).strip())
+                    mode = check_mode(sys.argv[4])
+
+                    while get_result(os.popen("aws apigateway put-rest-api --rest-api-id {} --mode {} --body 'file://{}' {}".format(sys.argv[3], mode, filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
+                        continue
+                    configure(config_api, filename, True if mode == 'merge' else False, old_endpoints)
+                else:
+                    print("Invalid file.")
+            else:
+                print("Use: {} [File .yaml or .json] --id {} [--overwrite|--merge]".format(os.path.basename(sys.argv[0]), sys.argv[3]))
+        else:
+            print("Use: {} [File .yaml or .json] --id [api-id] [--overwrite|--merge]".format(os.path.basename(sys.argv[0])))
+    elif len(sys.argv) >= 2 and sys.argv[1] == '--id': # gateway-responses
+        if len(sys.argv) >= 4 and sys.argv[3] == '--gateway-response':
+            gateway_responses({'id': sys.argv[2]})
+        else:
+            print("Use: {} --id [api-id] [--gateway-response]".format(os.path.basename(sys.argv[0])))
     else:
         if os.path.exists(sys.argv[1]): # check file exists
             filename = yaml_2_json(sys.argv[1])
