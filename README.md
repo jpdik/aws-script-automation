@@ -1,4 +1,4 @@
-# aws-script-automation [![nvm version](https://img.shields.io/badge/version-v1.2.2-blue.svg)](https://pypi.org/manage/project/aws-sa/releases/) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/aws-sa.svg?color=orange)
+# aws-script-automation [![nvm version](https://img.shields.io/badge/version-v1.2.3-blue.svg)](https://pypi.org/manage/project/aws-sa/releases/) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/aws-sa.svg?color=orange)
 Scripting for AWS API configurations automation
 
 ## Instalation
@@ -70,3 +70,15 @@ A documentation file with the same name as the imported file will be generated w
 You can change the region using:
 
 `aws configure set default.region [region]`
+
+## Merge or overwrite documentation file
+
+You can merge or overwrite a API with another documentation file using:
+
+`aws-sa [file] --id <ID_API> [--overwrite|--merge]`
+
+## Configure automatically gateway-responses
+
+You can configure automatically gateway-responses using:
+
+`aws-sa --id <ID_API> [--gateway-response]`
