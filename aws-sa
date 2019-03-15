@@ -272,7 +272,7 @@ def gateway_responses(config_api):
 
     for response in RESPONSE_TYPES:
         ''.join(os.popen('aws apigateway put-gateway-response --rest-api-id {} --response-type {} --response-parameters "{}" --response-templates {}'.format(config_api['id'], response, 
-        ''' {\\"gatewayresponse.header.Access-Control-Allow-Headers\\": \\"\'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token\'\\", \\"gatewayresponse.header.Access-Control-Allow-Methods\\": \\"\''''+'GET, POST, PUT, DELETE, OPTIONS'+'''\'\\", \\"gatewayresponse.header.Access-Control-Allow-Origin\\": \\"\'*\'\\"} ''',
+        ''' {\\"gatewayresponse.header.Access-Control-Allow-Headers\\": \\"\'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token\'\\", \\"gatewayresponse.header.Access-Control-Allow-Methods\\": \\"\''''+'GET,POST,PUT,DELETE,OPTIONS'+'''\'\\", \\"gatewayresponse.header.Access-Control-Allow-Origin\\": \\"\'*\'\\"} ''',
         ''' '{"application/json": "{ \\"msg_errors\\": [{ \\"status\\": \\"GATEWAY_ERROR\\", \\"msg\\": $context.error.messageString }] }"}' '''))).strip()
 
 def get_base_url(url):
@@ -346,9 +346,11 @@ def configure(config_api, filename, merge=False, old_endpoints={}):
                         print('Enabling CORS...')
 
                         for responseCode in codes["methodResponses"]:
-                            json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Origin",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
-                            json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Headers",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
-                            json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Methods",value="true"'.format(config_api['id'], item['id'], method, responseCode))).strip())
+                            if responseCode == "200": 
+                                json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Origin",value="false"'.format(config_api['id'], item['id'], method, responseCode))).strip())
+                            if responseCode == "200" and method == "OPTIONS":   
+                                json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Headers",value="false"'.format(config_api['id'], item['id'], method, responseCode))).strip())
+                                json.loads(''.join(os.popen('aws apigateway update-method-response --rest-api-id {} --resource-id {} --http-method {} --status-code {} --patch-operations op="add",path="/responseParameters/method.response.header.Access-Control-Allow-Methods",value="false"'.format(config_api['id'], item['id'], method, responseCode))).strip())
 
                         if method == "OPTIONS":
                             json.loads(''.join(os.popen('aws apigateway put-integration-response --rest-api-id {} --resource-id {} --http-method {} --status-code 200 --selection-pattern "-" --response-parameters "{}" --response-templates "{}"'.format(config_api['id'], item['id'], method,
