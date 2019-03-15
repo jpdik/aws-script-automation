@@ -1,4 +1,4 @@
-# aws-script-automation [![nvm version](https://img.shields.io/badge/version-v1.2.5-blue.svg)](https://pypi.org/manage/project/aws-sa/releases/) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/aws-sa.svg?color=orange)
+# aws-script-automation [![nvm version](https://img.shields.io/badge/version-v1.2.6-blue.svg)](https://pypi.org/manage/project/aws-sa/releases/) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/aws-sa.svg?color=orange)
 Scripting for AWS API configurations automation
 
 ## Instalation

@@ -337,7 +337,8 @@ def configure(config_api, filename, merge=False, old_endpoints={}):
                         print('Configuring endpoins...')
 
                         if method == "OPTIONS":
-                            json.loads(''.join(os.popen('aws apigateway put-integration --rest-api-id {0} --resource-id {1} --http-method {2} --type MOCK --integration-http-method {2} --uri \'{3}{4}\''.format(config_api['id'], item['id'], method, domain, item['path']))).strip())
+                            json.loads(''.join(os.popen('aws apigateway put-integration --rest-api-id {0} --resource-id {1} --http-method {2} --type MOCK --integration-http-method {2} --uri \'{3}{4}\' --request-templates {5}'.format(config_api['id'], item['id'], method, domain, item['path'],
+                            ''' '{"application/json": "{\\"statusCode\\": 200}"}' '''))).strip())
                         else:
                             json.loads(''.join(os.popen('aws apigateway put-integration --rest-api-id {0} --resource-id {1} --http-method {2} --type HTTP_PROXY --integration-http-method {2} --uri \'{3}{4}\' --request-parameters "{5}" '.format(config_api['id'], item['id'], method, domain, item['path'], '''{ \\"integration.request.header.Authorization\\": \\"\''''+key+'''\'\\" }'''))).strip())
                             json.loads(''.join(os.popen('aws apigateway put-integration-response --rest-api-id {} --resource-id {} --http-method {} --status-code 200 --selection-pattern "" --response-templates "{}"'.format(config_api['id'], item['id'], method, '''{ \\"application/json\\": \\"\\" }'''))).strip())
