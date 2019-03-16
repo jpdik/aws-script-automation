@@ -515,6 +515,7 @@ def init():
     if not os.path.isfile(os.path.expanduser(CONFIG_PATH)+'credentials'):
         configure_aws()
 
+    baseName = sys.argv[0]
     filepath = sys.argv[1]
     region = get_param_value('--region', sys.argv)
     id_api = get_param_value('--id', sys.argv)
@@ -524,7 +525,7 @@ def init():
 
     if len(sys.argv) <= 1:
         print("Tip: to set region use `aws configure set default.region [region]`")
-        print("Use: {} [File .yaml or .json] [--id] [api-id] [--overwrite|--merge]".format(os.path.basename(sys.argv[0])))
+        print("Use: {} [File .yaml or .json] [--id] [api-id] [--overwrite|--merge]".format(os.path.basename(baseName)))
     elif config:
         configure_aws()
     elif id_api and gateway_response: # gateway-responses
@@ -543,10 +544,10 @@ def init():
             else:
                 print("Invalid file.")
         else:
-            print("Use: {} [File .yaml or .json] --id {} [--overwrite|--merge]".format(os.path.basename(sys.argv[0]), id_api))
+            print("Use: {} [File .yaml or .json] --id {} [--overwrite|--merge]".format(os.path.basename(baseName), id_api))
     else:
-        if os.path.exists(sys.argv[1]): # check file exists
-            filename = yaml_2_json(sys.argv[1])
+        if os.path.exists(filepath): # check file exists
+            filename = yaml_2_json(filepath)
             include_itens_file(filename)
             while get_result(os.popen("aws apigateway import-rest-api --parameters {} --body 'file://{}' {}".format(PARAMS, filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
                 continue
