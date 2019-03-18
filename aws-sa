@@ -64,7 +64,7 @@ def load_default_values():
     else:
         data['deploy_name'] = 'prod'
         data['basePath'] = 'v1'
-        data['arn_group'] = 'arn:aws:logs:sa-east-1:262209455936:log-group:'
+        data['arn_group'] = 'arn:aws:logs:sa-east-1:262209455936:log-group'
         with open(os.path.expanduser(CONFIG_PATH)+'data_script', 'w') as f:
             json.dump(data, f, sort_keys=True, indent=4)
 
@@ -284,19 +284,24 @@ def create_deploy(config_api, overwrite=False):
     arn_group = ''
     cloud_groupname = ''
     if overwrite == False:
-        # Inserting custom logs
-        arn_group = input_complete('Insert Arn Log Group', 'arn_group')
-        cloud_groupname = input_wait('Insert CloudWatch Group (example: LawSuit):')
+        while True:
+            # Inserting custom logs
+            arn_group = input_complete('Insert Arn Log Group', 'arn_group')
+            cloud_groupname = input_wait('Insert CloudWatch Group (example: LawSuit):')
+            print("\n"+arn_group+":"+cloud_groupname)
+            resp = input('\nThat\'s right? (y): ')
+            if resp.lower() == 'y':
+                break
     else:
         # Getting config custom logs
         data = execute('aws apigateway get-stages --rest-api-id {}'.format(config_api['id']), True)
         data = data['item'][0]['accessLogSettings']['destinationArn'].rsplit(":", 1)
-        arn_group = data[0] + ":"
+        arn_group = data[0]
         cloud_groupname = data[1]
 
     print('Inserting CloudWatch Group...')
     
-    execute('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {} '''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/destinationArn", "value" : "'+arn_group+cloud_groupname+'" } ]\''))
+    execute('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {} '''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/destinationArn", "value" : "'+arn_group+ ":" + cloud_groupname+'" } ]\''))
 
     execute('''aws apigateway update-stage --rest-api-id {} --stage-name {} --patch-operations {}'''.format(config_api['id'], deploy_name, '\'[ { "op" : "replace", "path" : "/accessLogSettings/format", "value" : "{ \\"api_id\\": \\"$context.apiId\\", \\"api_key_id\\": \\"$context.identity.apiKeyId\\",\\"http_method\\": \\"$context.httpMethod\\", \\"requestId\\": \\"$context.requestId\\", \\"resource_id\\": \\"$context.resourceId\\", \\"resourcePath\\": \\"$context.resourcePath\\", \\"stage\\": \\"$context.stage\\", \\"status\\": \\"$context.status\\"}" } ]\''))
 
@@ -350,7 +355,7 @@ def remove_malformed_paths(endpoints):
 def make_gateway_deploy(config_api):
     gateway_responses(config_api)
 
-    create_deploy(config_api)
+    create_deploy(config_api, True)
 
 # Configure API imported
 def configure(config_api, filename, merge=False, overwrite=False, old_endpoints={}):
@@ -370,7 +375,8 @@ def configure(config_api, filename, merge=False, overwrite=False, old_endpoints=
             domain = input_wait('Insert Domain (example: https://example.com):')
         else:
             for item in old_endpoints['items']:
-                endpoints['items'].remove(item)
+                if item in endpoints['items']:
+                    endpoints['items'].remove(item)
 
             data_api = get_old_config(config_api, old_endpoints)
 
@@ -419,7 +425,7 @@ def configure(config_api, filename, merge=False, overwrite=False, old_endpoints=
             if not old_endpoints and overwrite == False:
                 gateway_responses(config_api)
             
-            deploy_name = create_deploy(config_api, overwrite)
+            deploy_name = create_deploy(config_api, False if not old_endpoints and overwrite == False else True)
 
             # create custom_domain if first time
             if not old_endpoints and overwrite == False:
@@ -515,23 +521,34 @@ def init():
     if not os.path.isfile(os.path.expanduser(CONFIG_PATH)+'credentials'):
         configure_aws()
 
+    default_region = ''.join(os.popen("aws configure get default.region")).strip()
+
     baseName = sys.argv[0]
+
+    if len(sys.argv) <= 1:
+        print("Tip: to set region use `aws configure set default.region [region]`")
+        print("Use: {} [File .yaml or .json] [--id] [api-id] [--overwrite|--merge|--gateway-response] [--region]".format(os.path.basename(baseName)))
+        return
+    
     filepath = sys.argv[1]
-    #region = get_param_value('--region', sys.argv)
+    region = get_param_value('--region', sys.argv)
     id_api = get_param_value('--id', sys.argv)
     mode = get_param_config('--overwrite', sys.argv) or get_param_config('--merge', sys.argv)
     config = check_param_exists('--config', sys.argv)
     gateway_response = get_param_config('--gateway-response', sys.argv)
 
-    if len(sys.argv) <= 1:
-        print("Tip: to set region use `aws configure set default.region [region]`")
-        print("Use: {} [File .yaml or .json] [--id] [api-id] [--overwrite|--merge]".format(os.path.basename(baseName)))
-    elif config:
+    if region:
+        execute('aws configure set default.region {}'.format(region))
+
+    if config:
         configure_aws()
-    elif id_api and gateway_response: # gateway-responses
-        make_gateway_deploy({'id': id_api})
-    elif id_api: # merge or overrite
-        if mode == 'overwrite' or mode == 'merge':
+    elif gateway_response: # gateway-responses
+        if id_api and gateway_response:
+            make_gateway_deploy({'id': id_api})
+        else:
+            print("Use: {} [File .yaml or .json] --id [id_api] --gateway-response".format(os.path.basename(baseName)))
+    elif mode == 'overwrite' or mode == 'merge':
+        if id_api:
             if os.path.exists(filepath): # check file exists
                 filename = yaml_2_json(filepath)
                 include_itens_file(filename)
@@ -544,7 +561,13 @@ def init():
             else:
                 print("Invalid file.")
         else:
-            print("Use: {} [File .yaml or .json] --id {} [--overwrite|--merge]".format(os.path.basename(baseName), id_api))
+            print("Use: {} [File .yaml or .json] --id [id_api] [--overwrite|--merge]".format(os.path.basename(baseName)))
+    elif id_api and not mode or not gateway_response:
+        if id_api == None:
+            print("Use: {} [File .yaml or .json] --id [id_api] [--overwrite|--merge|--gateway-response]".format(os.path.basename(baseName)))
+        else:
+            print("Use: {} [File .yaml or .json] --id {} [--overwrite|--merge|--gateway-response]".format(os.path.basename(baseName), id_api))
+
     else:
         if os.path.exists(filepath): # check file exists
             filename = yaml_2_json(filepath)
@@ -554,6 +577,9 @@ def init():
             configure(config_api, filename)
         else:
             print("Invalid file.")
+
+    if region:
+        execute('aws configure set default.region {}'.format(default_region))
 
 
 load_default_values()
