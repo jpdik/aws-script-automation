@@ -95,7 +95,7 @@ def yaml_2_json(file):
         return os.path.abspath(file)
     with open(os.path.abspath(file), 'r') as stream:
         try:
-            new_filename = os.path.abspath(file).replace('.yaml','')+'.json'
+            new_filename = os.path.abspath(file).replace('.yaml','.json')
             datamap = yaml.load(stream)
             with open(new_filename, 'w') as output:
                 output.write(OrderlyJSONEncoder(indent=2).encode(datamap))
@@ -109,7 +109,7 @@ def export_json_2_yaml(file):
     if '.yaml' in os.path.abspath(file):
         return os.path.abspath(file)
     try:
-        new_filename = os.path.abspath(file).replace('.json','')+'.prod.yaml'
+        new_filename = os.path.abspath(file).replace('.json','.prod.yaml')
         data = json.loads(open(os.path.abspath(file)).read())
         with open(new_filename, 'w', encoding = "utf-8") as output:
             yaml.dump(data, output)
@@ -216,6 +216,7 @@ def exclude_options_file(filename):
                 
     with open(filename, 'w') as output:
         output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
+
 # Include the OPTIONS to all path's if not exists
 def include_itens_file(filename):
     data_import = json.loads(open(filename).read())
@@ -254,6 +255,20 @@ def include_itens_file(filename):
 
     with open(filename, 'w') as output:
         output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
+
+# Include the OPTIONS to all path's if not exists
+def remove_conflicts(filename, old_endpoints):
+    temp_file = filename+".temp"
+    data_import = json.loads(open(filename).read())
+
+    for item in old_endpoints['items']:
+        if item['path'] in data_import['paths']:
+            del data_import['paths'][item['path']]
+
+    with open(temp_file, 'w') as output:
+        output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
+
+    return temp_file
 
 # Modify servers option into documentation
 def include_item_servers_file(filename, domain_name, basePath):
@@ -321,6 +336,21 @@ def custom_domain(config_api, deploy_name, filename):
             
     include_item_servers_file(filename, domain_name, basePath)
 
+def get_custom_domain(config_api, deploy_name, filename):
+    
+    domains = execute('aws apigateway get-domain-names', True)
+
+    domain_names = [domain['domainName'] for domain in domains['items']]
+
+    for name in domain_names:
+        base_paths = execute('aws apigateway get-base-path-mappings --domain-name {}'.format(name), True)
+
+        for base_path in base_paths['items']:
+            if base_path['restApiId'] == config_api['id']:
+                domain_name = name
+                basePath = base_path['basePath']
+                return include_item_servers_file(filename, domain_name, basePath)
+
 def gateway_responses(config_api):
     print('Configuring gateway responses...')
 
@@ -329,9 +359,9 @@ def gateway_responses(config_api):
         ''' {\\"gatewayresponse.header.Access-Control-Allow-Headers\\": \\"\'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token\'\\", \\"gatewayresponse.header.Access-Control-Allow-Methods\\": \\"\''''+'GET,POST,PUT,DELETE,OPTIONS'+'''\'\\", \\"gatewayresponse.header.Access-Control-Allow-Origin\\": \\"\'*\'\\"} ''',
         ''' '{"application/json": "{ \\"msg_errors\\": [{ \\"status\\": \\"GATEWAY_ERROR\\", \\"msg\\": $context.error.messageString }] }"}' '''))
 
-def get_base_url(url):
-    parsed_uri = urlparse(url)
-    return '{uri.scheme}://{uri.netloc}'.format(uri=parsed_uri)
+def get_domain_from_path(data):
+    return data['uri'].replace(data['path'], '')
+    #return '{uri.scheme}://{uri.netloc}'.format(uri=parsed_uri)
     
 
 # get old config JSON from old endpoints
@@ -342,6 +372,7 @@ def get_old_config(config_api, old_endpoints):
                 if method != "OPTIONS":
                     try:
                         data = execute('aws apigateway get-integration --rest-api-id {} --resource-id {} --http-method {}'.format(config_api['id'], item['id'], method), True)
+                        data['path'] = item['path']
                         return data
                     except json.decoder.JSONDecodeError:
                         continue 
@@ -381,7 +412,7 @@ def configure(config_api, filename, merge=False, overwrite=False, old_endpoints=
             data_api = get_old_config(config_api, old_endpoints)
 
             key = data_api['requestParameters']['integration.request.header.Authorization'].replace("\'", "")
-            domain = get_base_url(data_api['uri'])
+            domain = get_domain_from_path(data_api)
 
         codes = ""
 
@@ -433,6 +464,8 @@ def configure(config_api, filename, merge=False, overwrite=False, old_endpoints=
 
                 print('\nDeploy {} Executed sucessfully!!!'.format(deploy_name))
             else:
+                get_custom_domain(config_api, deploy_name, filename)
+
                 print('\nUpdate from {} Executed sucessfully!!!'.format(config_api['id']))
 
             exclude_options_file(filename)
@@ -553,11 +586,14 @@ def init():
                 filename = yaml_2_json(filepath)
                 include_itens_file(filename)
 
-                old_endpoints = execute('aws apigateway get-resources --rest-api-id {}'.format(id_api), True)
+                old_endpoints = execute('aws apigateway get-resources --rest-api-id {}'.format(id_api), True)               
 
-                while get_result(os.popen("aws apigateway put-rest-api --rest-api-id {} --mode {} --body 'file://{}' {}".format(id_api, mode, filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
+                temp_file = remove_conflicts(filename, old_endpoints)
+
+                while get_result(os.popen("aws apigateway put-rest-api --rest-api-id {} --mode {} --body 'file://{}' {}".format(id_api, mode, temp_file if mode == 'merge' else filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
                     continue
                 configure(config_api, filename, True if mode == 'merge' else False, True if mode == 'overwrite' else False, old_endpoints if mode == 'merge' else {})
+                remove_json(temp_file)
             else:
                 print("Invalid file.")
         else:
