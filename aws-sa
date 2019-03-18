@@ -562,12 +562,11 @@ def init():
                 print("Invalid file.")
         else:
             print("Use: {} [File .yaml or .json] --id [id_api] [--overwrite|--merge]".format(os.path.basename(baseName)))
-    elif id_api and not mode or not gateway_response:
+    elif id_api and (not mode or not gateway_response):
         if id_api == None:
             print("Use: {} [File .yaml or .json] --id [id_api] [--overwrite|--merge|--gateway-response]".format(os.path.basename(baseName)))
         else:
             print("Use: {} [File .yaml or .json] --id {} [--overwrite|--merge|--gateway-response]".format(os.path.basename(baseName), id_api))
-
     else:
         if os.path.exists(filepath): # check file exists
             filename = yaml_2_json(filepath)
