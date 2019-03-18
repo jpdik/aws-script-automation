@@ -350,7 +350,7 @@ def remove_malformed_paths(endpoints):
 def make_gateway_deploy(config_api):
     gateway_responses(config_api)
 
-    deploy_name = create_deploy(config_api)
+    create_deploy(config_api)
 
 # Configure API imported
 def configure(config_api, filename, merge=False, overwrite=False, old_endpoints={}):
@@ -517,7 +517,7 @@ def init():
 
     baseName = sys.argv[0]
     filepath = sys.argv[1]
-    region = get_param_value('--region', sys.argv)
+    #region = get_param_value('--region', sys.argv)
     id_api = get_param_value('--id', sys.argv)
     mode = get_param_config('--overwrite', sys.argv) or get_param_config('--merge', sys.argv)
     config = check_param_exists('--config', sys.argv)
