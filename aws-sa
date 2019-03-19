@@ -208,9 +208,13 @@ def input_wait(message):
         if val != "":
             return val
 
-# Exclude the OPTIONS from file after configuration
-def exclude_options_file(filename):
+# Recover original file after configuration
+def recover_file(config_api, filename):
     data_import = json.loads(open(filename).read())
+
+    if 'old_name' in config_api:
+        data_import['info']['title'] = config_api['old_name']
+
     for path in data_import["paths"]:
         if "options" in data_import["paths"][path]: del data_import["paths"][path]["options"]
                 
@@ -218,8 +222,14 @@ def exclude_options_file(filename):
         output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
 
 # Include the OPTIONS to all path's if not exists
-def include_itens_file(filename):
+def include_itens_file(filename, name=None):
     data_import = json.loads(open(filename).read())
+    
+    oldname = data_import['info']['title']
+    
+    if name:
+        data_import['info']['title'] = name
+
     for path in data_import["paths"]:
         if not "options" in data_import["paths"][path]:
             data_import["paths"][path]["options"] = { "responses": { "200": {
@@ -255,6 +265,8 @@ def include_itens_file(filename):
 
     with open(filename, 'w') as output:
         output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
+
+    return oldname
 
 # Include the OPTIONS to all path's if not exists
 def remove_conflicts(filename, old_endpoints):
@@ -468,7 +480,7 @@ def configure(config_api, filename, merge=False, overwrite=False, old_endpoints=
 
                 print('\nUpdate from {} Executed sucessfully!!!'.format(config_api['id']))
 
-            exclude_options_file(filename)
+            recover_file(config_api, filename)
             export_json_2_yaml(filename)
             remove_json(filename)
         except Exception as e:
@@ -560,12 +572,13 @@ def init():
 
     if len(sys.argv) <= 1:
         print("Tip: to set region use `aws configure set default.region [region]`")
-        print("Use: {} [File .yaml or .json] [--id] [api-id] [--overwrite|--merge|--gateway-response] [--region]".format(os.path.basename(baseName)))
+        print("Use: {} [File .yaml or .json] [--id] [api-id] [--overwrite|--merge|--gateway-response] [--region] [--name] [name_api]".format(os.path.basename(baseName)))
         return
     
     filepath = sys.argv[1]
     region = get_param_value('--region', sys.argv)
     id_api = get_param_value('--id', sys.argv)
+    name = get_param_value('--name', sys.argv)
     mode = get_param_config('--overwrite', sys.argv) or get_param_config('--merge', sys.argv)
     config = check_param_exists('--config', sys.argv)
     gateway_response = get_param_config('--gateway-response', sys.argv)
@@ -606,9 +619,10 @@ def init():
     else:
         if os.path.exists(filepath): # check file exists
             filename = yaml_2_json(filepath)
-            include_itens_file(filename)
+            oldname = include_itens_file(filename, name)
             while get_result(os.popen("aws apigateway import-rest-api --parameters {} --body 'file://{}' {}".format(PARAMS, filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
                 continue
+            config_api['old_name'] = oldname
             configure(config_api, filename)
         else:
             print("Invalid file.")
