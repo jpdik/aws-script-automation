@@ -597,14 +597,17 @@ def init():
         if id_api:
             if os.path.exists(filepath): # check file exists
                 filename = yaml_2_json(filepath)
-                include_itens_file(filename)
+                info = execute('aws apigateway get-rest-api --rest-api-id {}'.format(id_api), True)      
+                oldname = include_itens_file(filename, info['name'])
 
                 old_endpoints = execute('aws apigateway get-resources --rest-api-id {}'.format(id_api), True)               
 
                 temp_file = remove_conflicts(filename, old_endpoints)
-
+            
                 while get_result(os.popen("aws apigateway put-rest-api --rest-api-id {} --mode {} --body 'file://{}' {}".format(id_api, mode, temp_file if mode == 'merge' else filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
                     continue
+                    
+                config_api['old_name'] = oldname
                 configure(config_api, filename, True if mode == 'merge' else False, True if mode == 'overwrite' else False, old_endpoints if mode == 'merge' else {})
                 remove_json(temp_file)
             else:
