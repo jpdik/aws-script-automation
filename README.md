@@ -1,4 +1,4 @@
-# aws-script-automation [![nvm version](https://img.shields.io/badge/version-v1.3.4-blue.svg)](https://pypi.org/manage/project/aws-sa/releases/) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/aws-sa.svg?color=orange)
+# aws-script-automation [![nvm version](https://img.shields.io/badge/version-v1.3.5-blue.svg)](https://pypi.org/manage/project/aws-sa/releases/) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/aws-sa.svg?color=orange)
 Scripting for AWS API configurations automation
 
 ## Instalation
@@ -65,9 +65,33 @@ The values ​​are stored if you want to use them later (bracketed value). If 
 
 A documentation file with the same name as the imported file will be generated with the ending **.prod.yaml**.
 
+## Set name API
+
+You can use different names from documentation file using:
+
+`aws-sa [file] --name [new_name]`
+
+Example:
+
+`aws-sa file.yaml --name test`
+
+**Observation**: You only can use this command on create, not permitted in merge or overwrite.
+
+## Use temporary region
+
+You can use a temporary region into API using:
+
+`aws-sa [file] --region [region_name]`
+
+Example:
+
+`aws-sa file.yaml --region us-east-2`
+
+You can find the region values <a href="https://docs.aws.amazon.com/pt_br/general/latest/gr/rande.html">here</a>.
+
 ## Change Region
 
-You can change the region using:
+You can change the default region using:
 
 `aws configure set default.region [region]`
 

@@ -25,6 +25,7 @@ data = {}
 
 CONFIG_PATH = '~/.aws/'
 PARAMS = 'endpointConfigurationTypes=REGIONAL'
+CONFIG_PARAMS = ''
 
 RESPONSE_TYPES = [
 'DEFAULT_4XX',
@@ -165,7 +166,7 @@ def select_domain():
 # Get result from creation of API import, and show erros and a option to continue if have warnings
 def get_result(result):
     global config_api, fail
-    config_api = ''.join(result).strip()
+    config_api = result
     try:
         config_api = json.loads(config_api)
     except json.decoder.JSONDecodeError:
@@ -173,6 +174,7 @@ def get_result(result):
             resp = input('\n\nIgnore warnings? if it was an error it can not be continued (y / n): ')
             if resp.lower() == 'y':
                 fail = True
+                config_api = {}
                 return True
             elif resp.lower() == 'n':
                 return False
@@ -202,11 +204,12 @@ def input_complete(message, field):
     return value
 
 # Function to wait input value:
-def input_wait(message):
+def input_wait(message, permitBlank=False):
     while True:
         val = input(message)
-        if val != "":
-            return val
+        if val != "" or permitBlank:
+            return val if val != "" else None
+        
 
 # Recover original file after configuration
 def recover_file(config_api, filename):
@@ -299,8 +302,9 @@ def include_item_servers_file(filename, domain_name, basePath):
 def create_deploy(config_api, overwrite=False):
     
     deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
+    deploy_description = input_wait('Insert Deploy Description:', True)
 
-    execute('aws apigateway create-deployment --rest-api-id {} --stage-name {}'.format(config_api['id'], deploy_name))
+    execute('aws apigateway create-deployment --rest-api-id {} --stage-name {} {}'.format(config_api['id'], deploy_name, "--description {}".format(deploy_description) if deploy_description else "" ))
 
     print('Creating Deploy {}...'.format(deploy_name))
 
@@ -464,8 +468,8 @@ def configure(config_api, filename, merge=False, overwrite=False, old_endpoints=
 
                         print('\nPath: {}, Method: {}... Configured sucessfully!!!'.format(item['path'], method))
 
-            # Create gateway responses if first time
-            if not old_endpoints and overwrite == False:
+            # Create gateway responses if first time or overwrite
+            if not merge:
                 gateway_responses(config_api)
             
             deploy_name = create_deploy(config_api, False if not old_endpoints and overwrite == False else True)
@@ -554,19 +558,25 @@ def check_param_exists(param, args):
 def execute(command, withResponse=False):
     global region
     if withResponse:
-        return json.loads(''.join(os.popen(command)).strip())
+        return json.loads(''.join(os.popen('{} {}'.format(command, get_config_params()))).strip())
     else:
-        return ''.join(os.popen(command)).strip()
+        return ''.join(os.popen('{} {}'.format(command, get_config_params()))).strip()
+
+def add_config_param(param, value):
+    global CONFIG_PARAMS
+    CONFIG_PARAMS += "{} {}".format(param, value)
+
+def get_config_params():
+    global CONFIG_PARAMS
+    return CONFIG_PARAMS
 
 # Starts the script
 def init():
-    global config_api, PARAMS, fail
+    global config_api, PARAMS, CONFIG_PARAMS, fail
 
     # Create config API file and file credentials if not exists
     if not os.path.isfile(os.path.expanduser(CONFIG_PATH)+'credentials'):
         configure_aws()
-
-    default_region = ''.join(os.popen("aws configure get default.region")).strip()
 
     baseName = sys.argv[0]
 
@@ -584,7 +594,7 @@ def init():
     gateway_response = get_param_config('--gateway-response', sys.argv)
 
     if region:
-        execute('aws configure set default.region {}'.format(region))
+        add_config_param("--region", region)
 
     if config:
         configure_aws()
@@ -604,7 +614,7 @@ def init():
 
                 temp_file = remove_conflicts(filename, old_endpoints)
             
-                while get_result(os.popen("aws apigateway put-rest-api --rest-api-id {} --mode {} --body 'file://{}' {}".format(id_api, mode, temp_file if mode == 'merge' else filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
+                while get_result(execute("aws apigateway put-rest-api --rest-api-id {} --mode {} --body 'file://{}' {}".format(id_api, mode, temp_file if mode == 'merge' else filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings'))):
                     continue
                     
                 config_api['old_name'] = oldname
@@ -623,15 +633,12 @@ def init():
         if os.path.exists(filepath): # check file exists
             filename = yaml_2_json(filepath)
             oldname = include_itens_file(filename, name)
-            while get_result(os.popen("aws apigateway import-rest-api --parameters {} --body 'file://{}' {}".format(PARAMS, filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings')).readlines()):
+            while get_result(execute("aws apigateway import-rest-api --parameters {} --body 'file://{}' {}".format(PARAMS, filename, '--fail-on-warnings' if not fail else '--no-fail-on-warnings'))):
                 continue
             config_api['old_name'] = oldname
             configure(config_api, filename)
         else:
             print("Invalid file.")
-
-    if region:
-        execute('aws configure set default.region {}'.format(default_region))
 
 
 load_default_values()
