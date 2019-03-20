@@ -300,13 +300,18 @@ def include_item_servers_file(filename, domain_name, basePath):
         output.write(OrderlyJSONEncoder(indent=2).encode(data_import))
 
 def create_deploy(config_api, overwrite=False):
+    while True:
+        try:
+            deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
+            deploy_description = input_wait('Insert Deploy Description:', True)
+
+            print('Creating Deploy {}...'.format(deploy_name))
+
+            execute('aws apigateway create-deployment --rest-api-id {} --stage-name "{}" {}'.format(config_api['id'], deploy_name, "--description '{}'".format(deploy_description) if deploy_description else "" ), True)
+            break
+        except Exception:
+            print("Nome ou descrição inválido.")
     
-    deploy_name = input_complete('Insert Deploy Name', 'deploy_name')
-    deploy_description = input_wait('Insert Deploy Description:', True)
-
-    execute('aws apigateway create-deployment --rest-api-id {} --stage-name {} {}'.format(config_api['id'], deploy_name, "--description {}".format(deploy_description) if deploy_description else "" ))
-
-    print('Creating Deploy {}...'.format(deploy_name))
 
     # Enable Logs CloudWatch Group
     print('Enabling Logs CloudWatch Group...')
