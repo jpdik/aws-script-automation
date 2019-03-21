@@ -351,7 +351,7 @@ def custom_domain(config_api, deploy_name, filename):
     while True:
         try:
             basePath = input_complete('Insert Base Path', 'basePath')
-            execute("aws apigateway create-base-path-mapping --domain-name {} --rest-api-id {} --stage {} --base-path {}".format(domain_name, config_api['id'], deploy_name, basePath), True)
+            execute("aws apigateway create-base-path-mapping --domain-name {} --rest-api-id {} --stage {} --base-path '{}'".format(domain_name, config_api['id'], deploy_name, basePath), True)
             break
         except json.decoder.JSONDecodeError:
             print("This path is already in use. Insert another.")
