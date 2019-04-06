@@ -382,7 +382,7 @@ def gateway_responses(config_api):
         ''' '{"application/json": "{ \\"msg_errors\\": [{ \\"status\\": \\"GATEWAY_ERROR\\", \\"msg\\": $context.error.messageString }] }"}' '''))
 
 def get_domain_from_path(data):
-    return data['uri'].replace(data['path'], '')
+    return data['uri'].rsplit(data['path'], 1)[0]
     #return '{uri.scheme}://{uri.netloc}'.format(uri=parsed_uri)
     
 
